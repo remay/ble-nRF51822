@@ -49,7 +49,7 @@ public:
         return nRF5xGattServer::getInstance();
     };
     virtual GattClient &getGattClient() {
-        return nRF5xGattClient::getInstance();
+        return GattClient::getInstance();
     }
     virtual const SecurityManager &getSecurityManager() const {
         return nRF5xSecurityManager::getInstance();
