@@ -49,7 +49,12 @@ public:
         return nRF5xGattServer::getInstance();
     };
     virtual GattClient &getGattClient() {
-        return GattClient::getInstance();
+        #if defined(MCU_NORDIC_16K_S110) || defined(MCU_NORDIC_32K_S110)
+            /* S110 doesn't require GattClient to be implemented; save 300 bytes by removing this static overhead. */
+            return GattClient::getInstance();
+        #else
+            return nRF5xGattClient::getInstance();
+        #endif
     }
     virtual const SecurityManager &getSecurityManager() const {
         return nRF5xSecurityManager::getInstance();
