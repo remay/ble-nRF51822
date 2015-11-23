@@ -163,6 +163,12 @@ static void btle_handler(ble_evt_t *p_ble_evt)
             nRF5xSecurityManager::getInstance().processPasskeyDisplayEvent(p_ble_evt->evt.gap_evt.conn_handle, p_ble_evt->evt.gap_evt.params.passkey_display.passkey);
             break;
 
+        case BLE_GAP_EVT_AUTH_KEY_REQUEST:
+            Passkey_t passkey[PASSKEY_LEN];
+            nRF5xSecurityManager::getInstance().processPasskeyRequestEvent(p_ble_evt->evt.gap_evt.conn_handle, passkey);
+            sd_ble_gap_auth_key_reply(p_ble_evt->evt.gap_evt.conn_handle, BLE_GAP_AUTH_KEY_TYPE_PASSKEY, passkey); // XXX Handle error returns??
+            break;
+
         case BLE_GAP_EVT_TIMEOUT:
             nRF5xGap::getInstance().processTimeoutEvent(static_cast<Gap::TimeoutSource_t>(p_ble_evt->evt.gap_evt.params.timeout.src));
             break;
