@@ -164,7 +164,7 @@ static void btle_handler(ble_evt_t *p_ble_evt)
             break;
 
         case BLE_GAP_EVT_AUTH_KEY_REQUEST:
-            Passkey_t passkey[PASSKEY_LEN];
+            SecurityManager::Passkey_t passkey;
             nRF5xSecurityManager::getInstance().processPasskeyRequestEvent(p_ble_evt->evt.gap_evt.conn_handle, passkey);
             sd_ble_gap_auth_key_reply(p_ble_evt->evt.gap_evt.conn_handle, BLE_GAP_AUTH_KEY_TYPE_PASSKEY, passkey); // XXX Handle error returns??
             break;
