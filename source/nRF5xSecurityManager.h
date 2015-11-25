@@ -44,7 +44,7 @@ public:
     }
 
     /* Extensions to secure a connection */
-    ble_error_t secureConnection(Gap::Handle_t connectionHandle) {
+    virtual ble_error_t secureConnection(Gap::Handle_t connectionHandle) {
         return btle_secureConnection(connectionHandle);
     }
 
