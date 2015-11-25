@@ -53,6 +53,16 @@ ble_error_t btle_initializeSecurity(bool                                      en
 ble_error_t btle_getLinkSecurity(Gap::Handle_t connectionHandle, SecurityManager::LinkSecurityStatus_t *securityStatusP);
 
 /**
+ * Initiate security negotiation on a connection
+ *
+ * @param[in]  connectionHandle
+ *               Handle to identify the connection.
+ *
+ * @return BLE_ERROR_NONE. Or appropriate error code indicating reason for failure.
+ */
+ble_error_t btle_getLinkSecurity(Gap::Handle_t connectionHandle, SecurityManager::LinkSecurityStatus_t *securityStatusP);
+
+/**
  * Function for deleting all peer device context and all related bonding
  * information from the database.
  *
