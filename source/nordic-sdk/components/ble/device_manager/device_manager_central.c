@@ -2791,3 +2791,30 @@ void dm_ble_evt_handler(ble_evt_t * p_ble_evt)
 
     DM_MUTEX_UNLOCK();
 }
+
+ret_code_t dm_handle_get(uint16_t conn_handle, dm_handle_t * p_handle)
+{
+    ret_code_t err_code;
+    uint32_t   index;
+
+    NULL_PARAM_CHECK(p_handle);
+    VERIFY_APP_REGISTERED(p_handle->appl_id);
+
+    p_handle->device_id  = DM_INVALID_ID;
+
+    err_code = NRF_ERROR_NOT_FOUND;
+
+    for (index = 0; index < DEVICE_MANAGER_MAX_CONNECTIONS; index++)
+    {
+        //Search for matching connection handle.
+        if (conn_handle == m_connection_table[index].conn_handle)
+        {
+            p_handle->connection_id = index;
+            p_handle->device_id     = m_connection_table[index].bonded_dev_id;
+
+            err_code = NRF_SUCCESS;
+            break;
+        }
+    }
+    return err_code;
+}
