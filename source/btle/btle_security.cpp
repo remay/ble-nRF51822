@@ -148,6 +148,35 @@ btle_getLinkSecurity(Gap::Handle_t connectionHandle, SecurityManager::LinkSecuri
     return BLE_ERROR_NONE;
 }
 
+ble_error_t
+btle_secureConnection(Gap::Handle_t connectionHandle)
+{
+    ret_code_t rc;
+    dm_handle_t dmHandle = {
+        .appl_id = applicationInstance,
+    };
+    if ((rc = dm_handle_get(connectionHandle, &dmHandle)) != NRF_SUCCESS) {
+        if (rc == NRF_ERROR_NOT_FOUND) {
+            return BLE_ERROR_INVALID_PARAM;
+        } else {
+            return BLE_ERROR_UNSPECIFIED;
+        }
+    }
+
+    if ((rc = dm_security_setup_req(&dmHandle)) != NRF_SUCCESS) {
+        switch (rc) {  // XXX Check what values can be returned
+            case NRF_ERROR_INVALID_STATE:
+                return BLE_ERROR_INVALID_STATE;
+            case NRF_ERROR_NO_MEM:
+                return BLE_ERROR_NO_MEM;
+            default:
+                return BLE_ERROR_UNSPECIFIED;
+        }
+    }
+
+    return BLE_ERROR_NONE;
+}
+
 ret_code_t
 dm_handler(dm_handle_t const *p_handle, dm_event_t const *p_event, ret_code_t event_result)
 {

@@ -43,6 +43,11 @@ public:
         return btle_purgeAllBondingState();
     }
 
+    /* Extensions to secure a connection */
+    ble_error_t secureConnection(Gap::Handle_t connectionHandle) {
+        return btle_secureConnection(connectionHandle);
+    }
+
 public:
     nRF5xSecurityManager() {
         /* empty */
