@@ -60,7 +60,7 @@ ble_error_t btle_getLinkSecurity(Gap::Handle_t connectionHandle, SecurityManager
  *
  * @return BLE_ERROR_NONE. Or appropriate error code indicating reason for failure.
  */
-ble_error_t btle_getLinkSecurity(Gap::Handle_t connectionHandle, SecurityManager::LinkSecurityStatus_t *securityStatusP);
+ble_error_t btle_secureConnection(Gap::Handle_t connectionHandle);
 
 /**
  * Function for deleting all peer device context and all related bonding
