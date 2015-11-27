@@ -10,11 +10,25 @@
  */
 
 #include "device_manager.h"
-#include "app_trace.h"
+// #include "app_trace.h"
 #include "ble_advdata.h"
 #include "pstorage.h"
 #include "ble_hci.h"
 #include "app_error.h"
+
+#if defined ( __CC_ARM )
+    #ifndef __ALIGN
+        #define __ALIGN(x)      __align(x)                  /**< Forced aligment keyword for ARM Compiler */
+    #endif
+#elif defined ( __ICCARM__ )
+    #ifndef __ALIGN
+        #define __ALIGN(x)                                  /**< Forced aligment keyword for IAR Compiler */
+    #endif
+#elif defined   ( __GNUC__ )
+    #ifndef __ALIGN
+        #define __ALIGN(x)      __attribute__((aligned(x))) /**< Forced aligment keyword for GNU Compiler */
+    #endif
+#endif
 
 #define INVALID_ADDR_TYPE 0xFF /**< Identifier for an invalid address type. */
 
@@ -127,7 +141,7 @@ typedef enum
  * @note That if ENABLE_DEBUG_LOG_SUPPORT is disabled, having DM_DISABLE_LOGS has no effect.
  * @{
  */
-#define nDM_DISABLE_LOGS        /**< Enable this macro to disable any logs from this module. */
+#define DM_DISABLE_LOGS        /**< Enable this macro to disable any logs from this module. */
 
 #ifndef DM_DISABLE_LOGS
 #define DM_LOG  app_trace_log  /**< Used for logging details. */
@@ -429,7 +443,9 @@ typedef uint32_t (* storage_operation)(pstorage_handle_t * p_dest,
 #if(DEVICE_MANAGER_APP_CONTEXT_SIZE != 0)
 static uint8_t *               m_app_context_table[DEVICE_MANAGER_MAX_BONDS];         /**< Table to remember application contexts of bonded devices. */
 #endif // DEVICE_MANAGER_APP_CONTEXT_SIZE
+__ALIGN(sizeof(uint32_t))
 static peer_id_t               m_peer_table[DEVICE_MANAGER_MAX_BONDS];                /**< Table to maintain bonded devices' identification information, an instance is allocated in the table when a device is bonded and freed when bond information is deleted. */
+__ALIGN(sizeof(uint32_t))
 static bond_context_t          m_bond_table[DEVICE_MANAGER_MAX_CONNECTIONS];          /**< Table to maintain bond information for active peers. */
 static dm_gatts_context_t      m_gatts_table[DEVICE_MANAGER_MAX_CONNECTIONS];         /**< Table for service information for active connection instances. */
 static connection_instance_t   m_connection_table[DEVICE_MANAGER_MAX_CONNECTIONS];    /**< Table to maintain active peer information. An instance is allocated in the table when a new connection is established and freed on disconnection. */
