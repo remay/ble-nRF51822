@@ -76,12 +76,12 @@ btle_initializeSecurity(bool                                      enableBonding,
             .mitm          = requireMITM,  /**< Man In The Middle protection required. */
             .io_caps       = iocaps,       /**< IO capabilities, see @ref BLE_GAP_IO_CAPS. */
             .oob           = 0,            /**< Out Of Band data available. */
-            .min_key_size  = 16,           /**< Minimum encryption key size in octets between 7 and 16. If 0 then not applicable in this instance. */
+            .min_key_size  = 7,           /**< Minimum encryption key size in octets between 7 and 16. If 0 then not applicable in this instance. */
             .max_key_size  = 16,           /**< Maximum encryption key size in octets between min_key_size and 16. */
             .kdist_periph  = {
               .enc  = 1,                     /**< Long Term Key and Master Identification. */
               .id   = 1,                     /**< Identity Resolving Key and Identity Address Information. */
-              .sign = 1,                     /**< Connection Signature Resolving Key. */
+              .sign = 0,                     /**< Connection Signature Resolving Key. */
             },                             /**< Key distribution bitmap: keys that the peripheral device will distribute. */
         }
     };
