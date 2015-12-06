@@ -169,6 +169,14 @@ static void btle_handler(ble_evt_t *p_ble_evt)
             sd_ble_gap_auth_key_reply(p_ble_evt->evt.gap_evt.conn_handle, BLE_GAP_AUTH_KEY_TYPE_PASSKEY, passkey); // XXX Handle error returns??
             break;
 
+       // handle write reposne that fails due to insufficient authentication/encryption
+       case BLE_GATTC_EVT_WRITE_RSP:
+            if ((p_ble_evt->evt.gattc_evt.gatt_status == BLE_GATT_STATUS_ATTERR_INSUF_AUTHENTICATION) ||
+                (p_ble_evt->evt.gattc_evt.gatt_status == BLE_GATT_STATUS_ATTERR_INSUF_ENCRYPTION)) {
+                nRF5xSecurityManager::getInstance().secureConnection(p_ble_evt->evt.gattc_evt.conn_handle);
+            }
+            break;
+
         case BLE_GAP_EVT_TIMEOUT:
             nRF5xGap::getInstance().processTimeoutEvent(static_cast<Gap::TimeoutSource_t>(p_ble_evt->evt.gap_evt.params.timeout.src));
             break;
