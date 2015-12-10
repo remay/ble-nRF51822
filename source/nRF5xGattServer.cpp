@@ -277,6 +277,38 @@ ble_error_t nRF5xGattServer::write(Gap::Handle_t connectionHandle, GattAttribute
     return returnValue;
 }
 
+/**
+ * Perform an explicit BLE notification of a given attribute.
+ *
+ * @param[in] attributeHandle
+ *              Handle for the value attribute of the Characteristic.
+ * @param[in] value
+ *              A pointer to a buffer holding the new value
+ * @param[in] size
+ *              Size of the new value (in bytes).
+ *
+ * @return BLE_ERROR_NONE if we have successfully set the value of the attribute.
+ */
+ble_error_t nRF5xGattServer::notify(GattAttribute::Handle_t attributeHandle, const uint8_t buffer[], uint16_t len)
+{
+    uint16_t gapConnectionHandle = nRF5xGap::getInstance().getConnectionHandle();
+    ble_gatts_hvx_params_t hvx_params;
+
+    hvx_params.handle = attributeHandle;
+    hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+    hvx_params.offset = 0;
+    hvx_params.p_data = const_cast<uint8_t *>(buffer);
+    hvx_params.p_len  = &len;
+
+    error_t error = (error_t) sd_ble_gatts_hvx(gapConnectionHandle, &hvx_params);
+
+    if (error == ERROR_NONE)  
+	    return BLE_ERROR_NONE;
+    else
+	    return BLE_STACK_BUSY;
+}
+
+
 ble_error_t nRF5xGattServer::areUpdatesEnabled(const GattCharacteristic &characteristic, bool *enabledP)
 {
     /* Forward the call with the default connection handle. */
