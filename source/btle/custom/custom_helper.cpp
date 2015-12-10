@@ -222,8 +222,27 @@ error_t custom_add_in_characteristic(uint16_t                  service_handle,
         memclr_( &cccd_md, sizeof(ble_gatts_attr_md_t));
         cccd_md.vloc = BLE_GATTS_VLOC_STACK;
         BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
-    }
+		switch (requiredSecurity) {
+			case SecurityManager::SECURITY_MODE_ENCRYPTION_OPEN_LINK :
+				BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
+				break;
+			case SecurityManager::SECURITY_MODE_ENCRYPTION_NO_MITM :
+				BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&cccd_md.write_perm);
+				break;
+			case SecurityManager::SECURITY_MODE_ENCRYPTION_WITH_MITM :
+				BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(&cccd_md.write_perm);
+				break;
+			case SecurityManager::SECURITY_MODE_SIGNED_NO_MITM :
+				BLE_GAP_CONN_SEC_MODE_SET_SIGNED_NO_MITM(&cccd_md.write_perm);
+				break;
+			case SecurityManager::SECURITY_MODE_SIGNED_WITH_MITM :
+				BLE_GAP_CONN_SEC_MODE_SET_SIGNED_WITH_MITM(&cccd_md.write_perm);
+				break;
+			default:
+				BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
+				break;
+		}
+	}
 
     ble_gatts_char_md_t char_md = {0};
 
