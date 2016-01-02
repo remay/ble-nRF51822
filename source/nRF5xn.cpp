@@ -29,7 +29,7 @@ extern "C" {
 /**
  * The singleton which represents the nRF51822 transport for the BLE.
  */
-static nRF5xn deviceInstance;
+static nRF5xn *deviceInstance = NULL;
 
 /**
  * BLE-API requires an implementation of the following function in order to
@@ -38,7 +38,10 @@ static nRF5xn deviceInstance;
 BLEInstanceBase *
 createBLEInstance(void)
 {
-    return (&deviceInstance);
+    if (deviceInstance == NULL)
+        deviceInstance = new nRF5xn();
+
+    return (deviceInstance);
 }
 
 nRF5xn::nRF5xn(void) : initialized(false), instanceID(BLE::DEFAULT_INSTANCE)
