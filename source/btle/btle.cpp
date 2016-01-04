@@ -102,7 +102,8 @@ error_t btle_init(void)
     static const bool IS_SRVC_CHANGED_CHARACT_PRESENT = true;
     ble_enable_params_t enableParams = {
         .gatts_enable_params = {
-            .service_changed = IS_SRVC_CHANGED_CHARACT_PRESENT
+            .service_changed = IS_SRVC_CHANGED_CHARACT_PRESENT,
+            .attr_tab_size = 768
         }
     };
     if (sd_ble_enable(&enableParams) != NRF_SUCCESS) {
