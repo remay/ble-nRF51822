@@ -16,17 +16,20 @@
 
 #include "mbed.h"
 #include "nRF5xn.h"
+#include "ble/blecommon.h"
 #include "nrf_soc.h"
 
 #include "btle/btle.h"
 #include "nrf_delay.h"
 
+extern "C" {
 #include "softdevice_handler.h"
+}
 
 /**
  * The singleton which represents the nRF51822 transport for the BLE.
  */
-static nRF5xn deviceInstance;
+static nRF5xn *deviceInstance = NULL;
 
 /**
  * BLE-API requires an implementation of the following function in order to
@@ -35,10 +38,13 @@ static nRF5xn deviceInstance;
 BLEInstanceBase *
 createBLEInstance(void)
 {
-    return (&deviceInstance);
+    if (deviceInstance == NULL)
+        deviceInstance = new nRF5xn();
+
+    return (deviceInstance);
 }
 
-nRF5xn::nRF5xn(void)
+nRF5xn::nRF5xn(void) : initialized(false), instanceID(BLE::DEFAULT_INSTANCE)
 {
 }
 
@@ -48,6 +54,10 @@ nRF5xn::~nRF5xn(void)
 
 const char *nRF5xn::getVersion(void)
 {
+    if (!initialized) {
+        return "INITIALIZATION_INCOMPLETE";
+    }
+
     static char versionString[32];
     static bool versionFetched = false;
 
@@ -56,10 +66,11 @@ const char *nRF5xn::getVersion(void)
         if ((sd_ble_version_get(&version) == NRF_SUCCESS) && (version.company_id == 0x0059)) {
             switch (version.version_number) {
                 case 0x07:
-                    snprintf(versionString, sizeof(versionString), "Nordic BLE4.1 fw:%04x", version.subversion_number);
+                case 0x08:
+                    snprintf(versionString, sizeof(versionString), "Nordic BLE4.1 ver:%u fw:%04x", version.version_number, version.subversion_number);
                     break;
                 default:
-                    snprintf(versionString, sizeof(versionString), "Nordic (spec unknown) fw:%04x", version.subversion_number);
+                    snprintf(versionString, sizeof(versionString), "Nordic (spec unknown) ver:%u fw:%04x", version.version_number, version.subversion_number);
                     break;
             }
             versionFetched = true;
@@ -71,17 +82,43 @@ const char *nRF5xn::getVersion(void)
     return versionString;
 }
 
-ble_error_t nRF5xn::init(void)
+ble_error_t nRF5xn::init(BLE::InstanceID_t instanceID, FunctionPointerWithContext<BLE::InitializationCompleteCallbackContext *> callback)
 {
+    if (initialized) {
+        BLE::InitializationCompleteCallbackContext context = {
+            BLE::Instance(instanceID),
+            BLE_ERROR_ALREADY_INITIALIZED
+        };
+        callback.call(&context);
+        return BLE_ERROR_ALREADY_INITIALIZED;
+    }
+
+    instanceID   = instanceID;
+
     /* ToDo: Clear memory contents, reset the SD, etc. */
     btle_init();
 
+    initialized = true;
+    BLE::InitializationCompleteCallbackContext context = {
+        BLE::Instance(instanceID),
+        BLE_ERROR_NONE
+    };
+    callback.call(&context);
     return BLE_ERROR_NONE;
 }
 
 ble_error_t nRF5xn::shutdown(void)
 {
-    return (softdevice_handler_sd_disable() == NRF_SUCCESS) ? BLE_ERROR_NONE : BLE_STACK_BUSY;
+    if (!initialized) {
+        return BLE_ERROR_INITIALIZATION_INCOMPLETE;
+    }
+
+    if(softdevice_handler_sd_disable() != NRF_SUCCESS) {
+        return BLE_STACK_BUSY;
+    }
+
+    initialized = false;
+    return BLE_ERROR_NONE;
 }
 
 void

@@ -26,7 +26,11 @@
 #include "ble/GapScanningParams.h"
 
 #include "nrf_soc.h"
+
+extern "C" {
 #include "ble_radio_notification.h"
+}
+
 #include "btle_security.h"
 
 void radioNotificationStaticCallback(bool param);
@@ -47,9 +51,9 @@ public:
     virtual ble_error_t getAddress(AddressType_t *typeP, Address_t address);
     virtual ble_error_t setAdvertisingData(const GapAdvertisingData &, const GapAdvertisingData &);
 
-    virtual uint16_t    getMinAdvertisingInterval(void) const {return ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_INTERVAL_MIN);}
-    virtual uint16_t    getMinNonConnectableAdvertisingInterval(void) const {return ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_NONCON_INTERVAL_MIN);}
-    virtual uint16_t    getMaxAdvertisingInterval(void) const {return ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_INTERVAL_MAX);}
+    virtual uint16_t    getMinAdvertisingInterval(void) const {return GapAdvertisingParams::ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_INTERVAL_MIN);}
+    virtual uint16_t    getMinNonConnectableAdvertisingInterval(void) const {return GapAdvertisingParams::ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_NONCON_INTERVAL_MIN);}
+    virtual uint16_t    getMaxAdvertisingInterval(void) const {return GapAdvertisingParams::ADVERTISEMENT_DURATION_UNITS_TO_MS(BLE_GAP_ADV_INTERVAL_MAX);}
 
     virtual ble_error_t startAdvertising(const GapAdvertisingParams &);
     virtual ble_error_t stopAdvertising(void);
@@ -80,6 +84,8 @@ public:
         return BLE_ERROR_UNSPECIFIED;
     }
 
+/* Observer role is not supported by S110, return BLE_ERROR_NOT_IMPLEMENTED */
+#if !defined(TARGET_MCU_NRF51_16K_S110) && !defined(TARGET_MCU_NRF51_32K_S110)
     virtual ble_error_t startRadioScan(const GapScanningParams &scanningParams) {
         ble_gap_scan_params_t scanParams = {
             .active      = scanningParams.getActiveScanning(), /**< If 1, perform active scanning (scan requests). */
@@ -104,14 +110,87 @@ public:
 
         return BLE_STACK_BUSY;
     }
+#endif
 
 private:
+    bool    radioNotificationCallbackParam; /* parameter to be passed into the Timeout-generated radio notification callback. */
+    Timeout radioNotificationTimeout;
+
+    /*
+     * A helper function to post radio notification callbacks with low interrupt priority.
+     */
+    void postRadioNotificationCallback(void) {
+#ifdef YOTTA_CFG_MBED_OS
+        /*
+         * In mbed OS, all user-facing BLE events (interrupts) are posted to the
+         * MINAR scheduler to be executed as callbacks in thread mode. MINAR guards
+         * its critical sections from interrupts by acquiring CriticalSectionLock,
+         * which results in a call to sd_nvic_critical_region_enter(). Thus, it is
+         * safe to invoke MINAR APIs from interrupt context as long as those
+         * interrupts are blocked by sd_nvic_critical_region_enter().
+         *
+         * Radio notifications are a special case for the above. The Radio
+         * Notification IRQ is handled at a very high priority--higher than the
+         * level blocked by sd_nvic_critical_region_enter(). Thus Radio Notification
+         * events can preempt MINAR's critical sections. Using MINAR APIs (such as
+         * posting an event) directly in processRadioNotification() may result in a
+         * race condition ending in a hard-fault.
+         *
+         * The solution is to *not* call MINAR APIs directly from the Radio
+         * Notification handling; i.e. to do the bulk of RadioNotification
+         * processing at a reduced priority which respects MINAR's critical
+         * sections. Unfortunately, on a cortex-M0, there is no clean way to demote
+         * priority for the currently executing interrupt--we wouldn't want to
+         * demote the radio notification handling anyway because it is sensitive to
+         * timing, and the system expects to finish this handling very quickly. The
+         * workaround is to employ a Timeout to trigger
+         * postRadioNotificationCallback() after a very short delay (~0 us) and post
+         * the MINAR callback that context.
+         *
+         * !!!WARNING!!! Radio notifications are very time critical events. The
+         * current solution is expected to work under the assumption that
+         * postRadioNotificationCalback() will be executed BEFORE the next radio
+         * notification event is generated.
+         */
+        minar::Scheduler::postCallback(
+            mbed::util::FunctionPointer1<void, bool>(&radioNotificationCallback, &FunctionPointerWithContext<bool>::call).bind(radioNotificationCallbackParam)
+        );
+#else
+        /*
+         * In mbed classic, all user-facing BLE events execute callbacks in interrupt
+         * mode. Radio Notifications are a special case because its IRQ is handled at
+         * a very high priority. Thus Radio Notification events can preempt other
+         * operations that require interaction with the SoftDevice such as advertising
+         * payload updates and changing the Gap state. Therefore, executing a Radio
+         * Notification callback directly from processRadioNotification() may result
+         * in a race condition ending in a hard-fault.
+         *
+         * The solution is to *not* execute the Radio Notification callback directly
+         * from the Radio Notification handling; i.e. to do the bulk of the
+         * Radio Notification processing at a reduced priority. Unfortunately, on a
+         * cortex-M0, there is no clean way to demote priority for the currently
+         * executing interrupt--we wouldn't want to demote the radio notification
+         * handling anyway because it is sensitive to timing, and the system expects
+         * to finish this handling very quickly. The workaround is to employ a Timeout
+         * to trigger postRadioNotificationCallback() after a very short delay (~0 us)
+         * and execute the callback in that context.
+         *
+         * !!!WARNING!!! Radio notifications are very time critical events. The
+         * current solution is expected to work under the assumption that
+         * postRadioNotificationCalback() will be executed BEFORE the next radio
+         * notification event is generated.
+         */
+        radioNotificationCallback.call(radioNotificationCallbackParam);
+#endif /* #ifdef YOTTA_CFG_MBED_OS */
+    }
+
     /**
      * A helper function to process radio-notification events; to be called internally.
      * @param param [description]
      */
     void processRadioNotificationEvent(bool param) {
-        radioNotificationCallback.call(param);
+        radioNotificationCallbackParam = param;
+        radioNotificationTimeout.attach_us(this, &nRF5xGap::postRadioNotificationCallback, 0);
     }
     friend void radioNotificationStaticCallback(bool param); /* allow invocations of processRadioNotificationEvent() */
 

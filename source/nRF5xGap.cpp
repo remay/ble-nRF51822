@@ -143,13 +143,13 @@ ble_error_t nRF5xGap::startAdvertising(const GapAdvertisingParams &params)
     /* Check interval range */
     if (params.getAdvertisingType() == GapAdvertisingParams::ADV_NON_CONNECTABLE_UNDIRECTED) {
         /* Min delay is slightly longer for unconnectable devices */
-        if ((params.getInterval() < GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MIN_NONCON) ||
-            (params.getInterval() > GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MAX)) {
+        if ((params.getIntervalInADVUnits() < GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MIN_NONCON) ||
+            (params.getIntervalInADVUnits() > GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MAX)) {
             return BLE_ERROR_PARAM_OUT_OF_RANGE;
         }
     } else {
-        if ((params.getInterval() < GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MIN) ||
-            (params.getInterval() > GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MAX)) {
+        if ((params.getIntervalInADVUnits() < GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MIN) ||
+            (params.getIntervalInADVUnits() > GapAdvertisingParams::GAP_ADV_PARAMS_INTERVAL_MAX)) {
             return BLE_ERROR_PARAM_OUT_OF_RANGE;
         }
     }
@@ -171,10 +171,10 @@ ble_error_t nRF5xGap::startAdvertising(const GapAdvertisingParams &params)
     ble_gap_adv_params_t adv_para = {0};
 
     adv_para.type        = params.getAdvertisingType();
-    adv_para.p_peer_addr = NULL;                         // Undirected advertisement
+    adv_para.p_peer_addr = NULL;                           // Undirected advertisement
     adv_para.fp          = BLE_GAP_ADV_FP_ANY;
     adv_para.p_whitelist = NULL;
-    adv_para.interval    = params.getInterval();         // advertising interval (in units of 0.625 ms)
+    adv_para.interval    = params.getIntervalInADVUnits(); // advertising interval (in units of 0.625 ms)
     adv_para.timeout     = params.getTimeout();
 
     ASSERT(ERROR_NONE == sd_ble_gap_adv_start(&adv_para), BLE_ERROR_PARAM_OUT_OF_RANGE);
@@ -233,17 +233,18 @@ ble_error_t nRF5xGap::connect(const Address_t           peerAddr,
     }
 
     ble_gap_scan_params_t scanParams;
-    scanParams.active      = 0;    /**< If 1, perform active scanning (scan requests). */
     scanParams.selective   = 0;    /**< If 1, ignore unknown devices (non whitelisted). */
     scanParams.p_whitelist = NULL; /**< Pointer to whitelist, NULL if none is given. */
     if (scanParamsIn != NULL) {
-        scanParams.interval    = scanParamsIn->getInterval(); /**< Scan interval between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
-        scanParams.window      = scanParamsIn->getWindow();   /**< Scan window between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
-        scanParams.timeout     = scanParamsIn->getTimeout();  /**< Scan timeout between 0x0001 and 0xFFFF in seconds, 0x0000 disables timeout. */
+        scanParams.active      = scanParamsIn->getActiveScanning();   /**< If 1, perform active scanning (scan requests). */
+        scanParams.interval    = scanParamsIn->getInterval();         /**< Scan interval between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
+        scanParams.window      = scanParamsIn->getWindow();           /**< Scan window between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
+        scanParams.timeout     = scanParamsIn->getTimeout();          /**< Scan timeout between 0x0001 and 0xFFFF in seconds, 0x0000 disables timeout. */
     } else {
-        scanParams.interval    = 500; /**< Scan interval between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
-        scanParams.window      = 200;   /**< Scan window between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
-        scanParams.timeout     = 0;  /**< Scan timeout between 0x0001 and 0xFFFF in seconds, 0x0000 disables timeout. */
+        scanParams.active      = _scanningParams.getActiveScanning(); /**< If 1, perform active scanning (scan requests). */
+        scanParams.interval    = _scanningParams.getInterval();       /**< Scan interval between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
+        scanParams.window      = _scanningParams.getWindow();         /**< Scan window between 0x0004 and 0x4000 in 0.625ms units (2.5ms to 10.24s). */
+        scanParams.timeout     = _scanningParams.getTimeout();        /**< Scan timeout between 0x0001 and 0xFFFF in seconds, 0x0000 disables timeout. */
     }
 
     uint32_t rc = sd_ble_gap_connect(&addr, &scanParams, &connParams);
@@ -373,15 +374,30 @@ uint16_t nRF5xGap::getConnectionHandle(void)
 /**************************************************************************/
 ble_error_t nRF5xGap::setAddress(AddressType_t type, const Address_t address)
 {
-    if (type > ADDR_TYPE_RANDOM_PRIVATE_NON_RESOLVABLE) {
+    uint8_t cycle_mode;
+    ble_gap_addr_t dev_addr;
+
+    /* When using Public or Static addresses, the cycle mode must be None.
+       When using Random Private addresses, the cycle mode must be Auto.
+       In auto mode, the given address is ignored.
+    */
+    if ((type == ADDR_TYPE_PUBLIC) || (type == ADDR_TYPE_RANDOM_STATIC))
+    {
+        cycle_mode = BLE_GAP_ADDR_CYCLE_MODE_NONE;
+        memcpy(dev_addr.addr, address, ADDR_LEN);
+    }
+    else if ((type == ADDR_TYPE_RANDOM_PRIVATE_RESOLVABLE) || (type == ADDR_TYPE_RANDOM_PRIVATE_NON_RESOLVABLE))
+    {
+        cycle_mode = BLE_GAP_ADDR_CYCLE_MODE_AUTO;
+        // address is ignored when in auto mode
+    }
+    else
+    {
         return BLE_ERROR_PARAM_OUT_OF_RANGE;
     }
 
-    ble_gap_addr_t dev_addr;
     dev_addr.addr_type = type;
-    memcpy(dev_addr.addr, address, ADDR_LEN);
-
-    ASSERT_INT(ERROR_NONE, sd_ble_gap_address_set(BLE_GAP_ADDR_CYCLE_MODE_NONE, &dev_addr), BLE_ERROR_PARAM_OUT_OF_RANGE);
+    ASSERT_INT(ERROR_NONE, sd_ble_gap_address_set(cycle_mode, &dev_addr), BLE_ERROR_PARAM_OUT_OF_RANGE);
 
     return BLE_ERROR_NONE;
 }
@@ -434,7 +450,7 @@ ble_error_t nRF5xGap::setAppearance(GapAdvertisingData::Appearance appearance)
 
 ble_error_t nRF5xGap::getAppearance(GapAdvertisingData::Appearance *appearanceP)
 {
-    if (sd_ble_gap_appearance_get(reinterpret_cast<uint16_t *>(appearanceP))) {
+    if ((sd_ble_gap_appearance_get(reinterpret_cast<uint16_t *>(appearanceP)) == NRF_SUCCESS)) {
         return BLE_ERROR_NONE;
     } else {
         return BLE_ERROR_PARAM_OUT_OF_RANGE;
