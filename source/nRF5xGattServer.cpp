@@ -308,6 +308,7 @@ ble_error_t nRF5xGattServer::notify(GattAttribute::Handle_t attributeHandle, con
 	    return BLE_STACK_BUSY;
 }
 
+
 ble_error_t nRF5xGattServer::areUpdatesEnabled(const GattCharacteristic &characteristic, bool *enabledP)
 {
     /* Forward the call with the default connection handle. */
